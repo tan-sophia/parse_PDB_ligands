@@ -1,7 +1,9 @@
 # combs_ligand_database
 Parse a mirror of the PDB for protein-ligand contacts.
 
-### using the code
+### description
+Renamed (for accuracy) and adapted from the combs_ligand_database repo developed by Rian Kormos:
+
 This code is intended to generate the necessary pickled objects for the generation of van der Mer databases 
 using the Combs2 software package for the design of ligand-binding proteins.  A mirror of the PDB and 
 validation information for each structure is a necessary prerequisite.  These can be downloaded from the 
