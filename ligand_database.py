@@ -201,6 +201,7 @@ def write_biounits(ent_gz_paths, pdb_tmp_dir, water_csv_path=None,
                         new_chids[(segs == seg) & (chids == chid)] = \
                             unique_seg_chids[j][1]
                     else:
+                        print(f'COMBS SKIPPED {pdb_code} b/c j >= unique seg chids')
                         break
                 orig_chids = deepcopy(chids)
                 chids[new_chids != np.nan] = new_chids[new_chids != np.nan]
@@ -351,11 +352,13 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
         for outdir in [probe_outdir, rotalyze_outdir, prody_pkl_outdir, 
                        validation_pkl_outdir]:
             if not os.path.exists(outdir + '/' + pdb_name[1:3]):
-                os.mkdir(outdir + '/' + pdb_name[1:3])
+                os.makedirs(outdir + '/' + pdb_name[1:3])
         ###
         val_path = validation_dir + '/' + pdb_name + '/' + pdb_name + \
                    '_validation.xml.gz'
+        
         try:
+            assert os.path.exists(val_path)
             val_df, data = parse_validation_rep(val_path)
             b = pr.parsePDB(p)
             b = transfer_O3(b) # transfer O3' atoms in nucleotides
@@ -363,12 +366,15 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
             traceback.print_exc(file=sys.stdout)
             cmd = ['rm', basename + name + '.pdb;']
             os.system(' '.join(cmd))
+            print(f'COMBS SKIPPED {pdb_name} because could not execute: ')
+            print(' '.join(cmd))
             continue
         segs_chains_resnums_resnames = \
             get_segs_chains_resnums(b, non_prot_sel, True)
         if not len(segs_chains_resnums_resnames):
             cmd = ['rm', basename + name + '.pdb;']
             os.system(' '.join(cmd))
+            print(f'COMBS SKIPPED {pdb_name} b/c no segs_chains_resnums_resnames')
             continue
         contact_segs = [] # segment names of non-protein residues that contact 
                           # the protein according to probe
@@ -396,11 +402,13 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                     selstr_prot_noseg.format(chid_lig, resi_lig_for_sel), 
                     True)
             if not len(scrr_prot):
+                print(f'COMBS SKIPPED {pdb_name} because no scrr_prot')
                 continue
             _, _, aa_resi, aa_resn = [list(tup) for tup in zip(*scrr_prot)]
             site = sorted([resn_lig] + aa_resn + 
                           [str(resi_lig)] + [str(resi) for resi in aa_resi])
             if site in prev_sites:
+                print(f'COMBS SKIPPED {pdb_name} b/c site in prev_sites')
                 continue
             else:
                 prev_sites.append(site)
@@ -409,10 +417,13 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                 probe_df = parse_probe(p, segname1=seg_lig, 
                                        chain1=chid_lig, 
                                        resnum1=resi_lig, 
-                                       path_to_probe=probe_path)
+                                       path_to_probe=probe_path,
+                                       ignore_bo=False)
             except TimeoutError:
+                print(f'COMBS SKIPPED {pdb_name} because timed out')
                 break
             if not len(probe_df):
+                print(f'COMBS SKIPPED {pdb_name} because no probe_df')
                 continue
             probe_df.loc[probe_df.chain1 == chid_lig, 'orig_chain1'] = \
                 chain_pair_dict[chid_lig]
@@ -422,6 +433,7 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                          right_on=['chain', 'resname', 'resnum'], 
                          suffixes=['', '1'])
             if not len(probe_df):
+                print(f'COMBS SKIPPED {pdb_name} b/c no probe_df post-merge')
                 continue
             for chain2 in probe_df.chain2.unique():
                 probe_df.loc[probe_df.chain2 == chain2, 'orig_chain2'] = \
@@ -432,6 +444,7 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                          right_on=['chain', 'resname', 'resnum'], 
                          suffixes=['1', '2'])
             if not len(probe_df):
+                print(f'COMBS SKIPPED {pdb_name} because no probe_df chain2')
                 continue
             probe_df = probe_df.loc[:, ~probe_df.columns.duplicated()]
             probe_outpath = probe_outdir + '/' + pdb_name[1:3] + '/' + name + \
@@ -446,6 +459,7 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
             for seg_prot, chid_prot, resi_prot, resn_prot in scrr_prot:
                 if not ((probe_df['chain2'] == chid_prot) & 
                         (probe_df['resnum2'] == resi_prot)).any():
+                    print(f'COMBS SKIPPED {pdb_name} b/c no contact with lig')
                     continue
                 contact_chids.append(chid_prot)
                 contact_segs.append(seg_prot)
@@ -545,7 +559,7 @@ def ent_gz_dir_to_combs_db_files(ent_gz_dir, validation_dir,
     for _dir in [ent_gz_dir, prody_pkl_outdir, rotalyze_outdir, 
                  probe_outdir, validation_outdir, pdb_tmp_dir]:
         if not os.path.exists(_dir):
-            os.mkdir(_dir)
+            os.makedirs(_dir)
     if ent_gz_dir[:-1] != '/':
         ent_gz_dir += '/'
     ent_gz_paths = [ent_gz_dir + path for path in os.listdir(ent_gz_dir)]
@@ -606,12 +620,12 @@ if __name__ == "__main__":
     _probe = '/wynton/home/degradolab/rkormos/probe/probe'
     _rotalyze = ('/salilab/diva1/programs/x86_64linux/phenix-1.19.1.4122/'
                  'phenix-1.19.1-4122/build/bin/phenix.rotalyze')
-    if args.reduce is None:
-        args.reduce = _reduce
-    if args.probe is None:
-        args.probe = _probe
-    if args.rotalyze is None:
-        args.rotalyze = _rotalyze
+    if args.reduce_path is None:
+        args.reduce_path = _reduce
+    if args.probe_path is None:
+        args.probe_path = _probe
+    if args.rotalyze_path is None:
+        args.rotalyze_path = _rotalyze
     ent_gz_dir_to_combs_db_files(args.ent_gz_dir, args.validation_dir, 
                                  args.prody_pkl_outdir, args.rotalyze_outdir, 
                                  args.probe_outdir, args.validation_outdir, 
@@ -619,3 +633,4 @@ if __name__ == "__main__":
                                  args.probe_path, args.rotalyze_path, 
                                  args.max_ligands, args.water_csv_path, 
                                  args.pdb_het_dict, args.retry)
+    print('SCRIPT COMPLETED')

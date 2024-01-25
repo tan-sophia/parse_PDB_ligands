@@ -195,7 +195,7 @@ def parse_probe(pdb_file,
     probe_dict_interactions = defaultdict(list)
     probe_dict_info = defaultdict(list)
     probe_data = []
-    print(cmd)
+    #print(cmd)
     with os.popen(cmd) as probefile:
         for line in probefile:
             try:
@@ -205,7 +205,11 @@ def parse_probe(pdb_file,
             probe_dict_interactions[line_data[1:4]].append(line_data[0])
             probe_dict_info[line_data[1:4]].append(line_data)
     for residue, interactions in probe_dict_interactions.items():
-        if (not ignore_bo) and 'bo' in interactions:
+        if ignore_bo and 'bo' in interactions:
+            print(f'COMBS SKIPPED {pdb_file} bc of bo - bad overlap')
+            # Be cautious if the above error statement prints because the
+            # default is now ignore_bo=False, and maybe there's weord
+            # behavior elsewhere in the code.
             continue
         probe_dict = defaultdict(list)
         for line_data in probe_dict_info[residue]:
@@ -222,6 +226,8 @@ def parse_probe(pdb_file,
             elif include_wc and 'wc' in interactions:
                 interaction = 'wc'
             else:
+                print(f'COMBS SKIPPED {pdb_file} because interactions: ')
+                print(interactions)
                 continue
             data = [interaction]
             data.extend(info)
