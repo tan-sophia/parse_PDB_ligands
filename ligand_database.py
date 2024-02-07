@@ -577,25 +577,34 @@ def parse_args():
     argp = argparse.ArgumentParser()
     argp.add_argument('-e', '--ent-gz-dir', help="Path to directory "
                       "containing ent.gz files from which to generate input "
-                      "files for COMBS database generation.")
+                      "files for COMBS database generation.",
+                      required=True)
     argp.add_argument('-v', '--validation-dir', help="Path to directory "
                       "containing xml.gz files with validation report "
-                      "data for all PDB structures.")
+                      "data for all PDB structures.",
+                      required=True)
     argp.add_argument('-o', '--prody-pkl-outdir', help="Path to directory at "
-                      "which to output pickled ProDy files.")
+                      "which to output pickled ProDy files.",
+                      requird=True)
     argp.add_argument('-r', '--rotalyze-outdir', help="Path to directory at "
-                      "which to output pickled rotalyze dataframes.")
+                      "which to output pickled rotalyze dataframes.",
+                      required=True)
     argp.add_argument('-p', '--probe-outdir', help="Path to directory at "
-                      "which to output pickled probe dataframes.")
+                      "which to output pickled probe dataframes.",
+                      required=True)
     argp.add_argument('-a', '--validation-outdir', help="Path to directory at "
-                      "which to output pickled validation dataframes.")
+                      "which to output pickled validation dataframes.",
+                      required=True)
     argp.add_argument('-t', '--pdb-tmp-dir', 
                       default='/wynton/scratch/rian.kormos/tmp_pdbs/', 
                       help="Temporary directory at which to output unzipped "
-                      "ent files.")
-    argp.add_argument("--reduce-path", help="Path to reduce binary.")
-    argp.add_argument("--probe-path", help="Path to probe binary.")
-    argp.add_argument("--rotalyze-path", help="Path to rotalyze binary.")
+                      "ent files.", required=True)
+    argp.add_argument("--reduce-path", help="Path to reduce binary.",
+                      required=True)
+    argp.add_argument("--probe-path", help="Path to probe binary.",
+                      required=True)
+    argp.add_argument("--rotalyze-path", help="Path to rotalyze binary.",
+                      required=True)
     argp.add_argument('-m', '--max-ligands', type=int, default=25, 
                       help="Maximum number of heteroatom (i.e. non-protein, "
                       "non-nucleic, and non-water) residues to permit in a "
@@ -616,16 +625,6 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    _reduce = '/wynton/home/degradolab/rkormos/reduce/reduce_src/reduce'
-    _probe = '/wynton/home/degradolab/rkormos/probe/probe'
-    _rotalyze = ('/salilab/diva1/programs/x86_64linux/phenix-1.19.1.4122/'
-                 'phenix-1.19.1-4122/build/bin/phenix.rotalyze')
-    if args.reduce_path is None:
-        args.reduce_path = _reduce
-    if args.probe_path is None:
-        args.probe_path = _probe
-    if args.rotalyze_path is None:
-        args.rotalyze_path = _rotalyze
     ent_gz_dir_to_combs_db_files(args.ent_gz_dir, args.validation_dir, 
                                  args.prody_pkl_outdir, args.rotalyze_outdir, 
                                  args.probe_outdir, args.validation_outdir, 
