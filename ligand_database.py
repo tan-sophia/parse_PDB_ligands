@@ -1,3 +1,7 @@
+# TODO: Clean up code, because the assumed database is formatted differently
+# than the intended (Combs) database. E.g. remove references to ent_gz, 
+# validation metrics, etc.
+
 import os
 import sys
 import pickle
@@ -16,6 +20,9 @@ from probe import *
 from probe import timeout
 
 """
+Note: this runs on a single PDB at a time for batch submissions to 
+a cluster.
+
 Updated pdb files and validation reports should be downloaded via the 
 pdb ftp server:
 
@@ -74,36 +81,6 @@ def get_segs_chains_resnums(atomgroup, selection, resnames=False):
         return set(zip(sel.getSegnames(), sel.getChids(), sel.getResnums()))
 
 
-def get_author_assigned_biounits(pdb_file):
-    """Given a gzipped PDB file, obtain the author-assigned biounits.
-
-    Parameters
-    ----------
-    pdb_file : str
-        Path to gzipped PDB file for which to obtain author-assigned biounits.
-
-    Returns
-    -------
-    biomols : list
-        List of integer indices of biological assemblies.
-    """
-    _str = 'AUTHOR DETERMINED BIOLOGICAL UNIT'
-    biomols = []
-    with gzip.open(pdb_file, 'rt') as infile:
-        for line in infile:
-            if line[:10] == 'REMARK 350':
-                break
-        for line in infile:
-            if line[:10] != 'REMARK 350':
-                break
-            if 'BIOMOLECULE:' in line:
-                biomol = int(line.strip().split('BIOMOLECULE:')[-1])
-                continue
-            if _str in line:
-                biomols.append(biomol)
-    return biomols
-
-
 @timeout(5)
 def get_bio(path):
     """Given the path to a gzipped PDB file, return its biological assemblies.
@@ -122,7 +99,7 @@ def get_bio(path):
     return pr.parsePDB(path, biomol=True)
 
 
-def write_biounits(ent_gz_paths, pdb_tmp_dir, water_csv_path=None, 
+def write_biounits(pdbpath, pdb_tmp_dir, water_csv_path=None, 
                    max_ligands=None, write=True):
     """For a list of ent.gz files, write the author-assigned biounits to PDB.
 
@@ -158,76 +135,75 @@ def write_biounits(ent_gz_paths, pdb_tmp_dir, water_csv_path=None,
         water_df = None
     bio_paths = []
     chain_pair_dicts = []
-    for i, path in enumerate(ent_gz_paths):
-        try:
-            bio = get_bio(path)
-            pdb_code = path.split('/')[-1][:7]
-            if type(bio) != list:
-                bio = [bio]
-            bio_list = [k + 1 for k in range(len(bio))]
-            author_assigned = get_author_assigned_biounits(path)
-            if len(author_assigned) > 0:
-                bio_list = [int(b.getTitle().split()[-1]) for b in bio]
-                bio = [bio[bio_list.index(i)] for i in author_assigned]
-                bio_list = author_assigned
-            for i, b in enumerate(bio):
-                water_sel = 'not water'
-                if water_df is not None:
-                    subdf = water_df[water_df.pdb_code == pdb_code]
-                    water_resnums = subdf['resnum'].values
-                    if len(water_resnums):
-                        water_sel += ' or resname HOH and resnum ' + \
-                                     ' '.join([str(n) for n in water_resnums])
-                bio[i] = b.select(water_sel).toAtomGroup()
-            n_near = [len(get_segs_chains_resnums(b, 
-                      non_prot_sel + ' within 4 of protein')) 
-                      for b in bio]
-            if type(max_ligands) is int:
-                n_ligands = \
-                    [len(get_segs_chains_resnums(b, 'not water hetero')) 
-                     for b in bio]
-                bio = [b for b, nl, nn in zip(bio, n_ligands, n_near) 
-                       if nl < max_ligands and nc > 0]
-            else:
-                bio = [b for b, nn in zip(bio, n_near) if nn > 0] 
-            for i, b in enumerate(bio):
-                chids = b.getChids()
-                segs = b.getSegnames() 
-                new_chids = np.ones(len(chids), dtype='object')
-                new_chids[:] = np.nan
-                unique_seg_chids = sorted(set(list(zip(segs, chids))))
-                for j, (seg, chid) in enumerate(unique_seg_chids):
-                    if j < len(unique_seg_chids):
-                        new_chids[(segs == seg) & (chids == chid)] = \
-                            unique_seg_chids[j][1]
-                    else:
-                        print(f'COMBS SKIPPED {pdb_code} b/c j >= unique seg chids')
-                        break
-                orig_chids = deepcopy(chids)
-                chids[new_chids != np.nan] = new_chids[new_chids != np.nan]
-                mask = (new_chids == np.nan)
-                if mask.any():
-                    print('***************************')
-                    print(pdb, 'is more than 90 chains!')
-                    chids[mask] = '?'
-                    b.setChids(chids)
-                    bio[i] = b.select('not chain ?').copy()
+    pdb_code = pdbpath.split('/')[-1]
+    try:
+        bio = get_bio(pdbpath)
+        if type(bio) != list:
+            bio = [bio]
+        bio_list = [k + 1 for k in range(len(bio))]
+        #author_assigned = get_author_assigned_biounits(pdbpath)
+        #if len(author_assigned) > 0:
+        #    bio_list = [int(b.getTitle().split()[-1]) for b in bio]
+        #    bio = [bio[bio_list.index(i)] for i in author_assigned]
+        #    bio_list = author_assigned
+        for i, b in enumerate(bio):
+            water_sel = 'not water'
+            if water_df is not None:
+                subdf = water_df[water_df.pdb_code == pdb_code]
+                water_resnums = subdf['resnum'].values
+                if len(water_resnums):
+                    water_sel += ' or resname HOH and resnum ' + \
+                                 ' '.join([str(n) for n in water_resnums])
+            bio[i] = b.select(water_sel).toAtomGroup()
+        n_near = [len(get_segs_chains_resnums(b, 
+                  non_prot_sel + ' within 4 of protein')) 
+                  for b in bio]
+        if type(max_ligands) is int:
+            n_ligands = \
+                [len(get_segs_chains_resnums(b, 'not water hetero')) 
+                 for b in bio]
+            bio = [b for b, nl, nn in zip(bio, n_ligands, n_near) 
+                   if nl < max_ligands and nc > 0]
+        else:
+            bio = [b for b, nn in zip(bio, n_near) if nn > 0] 
+        for i, b in enumerate(bio):
+            chids = b.getChids()
+            segs = b.getSegnames() 
+            new_chids = np.ones(len(chids), dtype='object')
+            new_chids[:] = np.nan
+            unique_seg_chids = sorted(set(list(zip(segs, chids))))
+            for j, (seg, chid) in enumerate(unique_seg_chids):
+                if j < len(unique_seg_chids):
+                    new_chids[(segs == seg) & (chids == chid)] = \
+                        unique_seg_chids[j][1]
                 else:
-                    b.setChids(chids)
-                chain_pair_dict = dict(zip(chids[~mask], orig_chids[~mask]))
-                bio_path = pdb_tmp_dir + pdb_code[3:].upper() + '_biounit_' + \
-                           str(bio_list[i]) + '.pdb'
-                if write:
-                    pr.writePDB(bio_path, bio[i])
-                bio_paths.append(bio_path)
-                chain_pair_dicts.append(chain_pair_dict)
-        except Exception:
-            print('**************************************************')
-            traceback.print_exc(file=sys.stdout)
+                    print(f'COMBS SKIPPED {pdb_code} b/c j >= unique seg chids')
+                    break
+            orig_chids = deepcopy(chids)
+            chids[new_chids != np.nan] = new_chids[new_chids != np.nan]
+            mask = (new_chids == np.nan)
+            if mask.any():
+                print('***************************')
+                print(pdbpath, 'is more than 90 chains!')
+                chids[mask] = '?'
+                b.setChids(chids)
+                bio[i] = b.select('not chain ?').copy()
+            else:
+                b.setChids(chids)
+            chain_pair_dict = dict(zip(chids[~mask], orig_chids[~mask]))
+            bio_path = pdb_tmp_dir + pdb_code + '_biounit_' + \
+                       str(bio_list[i]) + '.pdb'
+            if write:
+                pr.writePDB(bio_path, bio[i])
+            bio_paths.append(bio_path)
+            chain_pair_dicts.append(chain_pair_dict)
+    except Exception:
+        print('**************************************************')
+        traceback.print_exc(file=sys.stdout)
     return bio_paths, chain_pair_dicts
 
 
-def reduce_pdbs(pdb_list, reduce_path, hetdict_path=None):
+def reduce_pdbs(pdb_list, reduce_path):
     """Add hydrogens to a list of PDB files using the Reduce program.
 
     Parameters
@@ -243,10 +219,9 @@ def reduce_pdbs(pdb_list, reduce_path, hetdict_path=None):
     for p in pdb_list:
         cmd = [reduce_path, '-TRIM', p, '>', p + '_trimreduce', 
                ';', reduce_path]
-        if hetdict_path is not None:
-            cmd += ['-DB', hetdict_path]
         cmd += ['-BUILD', p + '_trimreduce', '>', p + '_reduce', ';', 
                 'rm', p + '_trimreduce', ';', 'mv', p + '_reduce', p]
+        
         os.system(' '.join(cmd))
 
 
@@ -286,9 +261,10 @@ def transfer_O3(struct):
     return struct
  
 
-def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir, 
+def pdbs_to_pkl(pdb_list, chain_pair_dicts, #validation_dir, 
                 probe_outdir, rotalyze_outdir, prody_pkl_outdir, 
-                validation_pkl_outdir, probe_path, rotalyze_path, 
+                #validation_pkl_outdir, 
+                probe_path, rotalyze_path, 
                 retry=False):
     """Use the Probe software to evaluate ligand contacts in a list of PDBs.
        Then, use the phenix.rotalyze software to evaluate rotamers for each.
@@ -333,40 +309,37 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
         rotalyze_outdir += '/'
     if prody_pkl_outdir[-1] != '/':
         prody_pkl_outdir += '/'
-    if validation_pkl_outdir[-1] != '/':
-        validation_pkl_outdir += '/'
-    if validation_dir[-1] != '/':
-        validation_dir += '/'
+    #if validation_pkl_outdir[-1] != '/':
+    #    validation_pkl_outdir += '/'
+    #if validation_dir[-1] != '/':
+    #    validation_dir += '/'
     n_pdbs = len(pdb_list)
     for n, p, chain_pair_dict in zip(range(n_pdbs), pdb_list, 
                                      chain_pair_dicts):
-        print('pdb', str(n + 1), 'of', str(n_pdbs))
-        val_data = []
+        #val_data = []
         basename = '/'.join(p.split('/')[:-1]) + '/'
         name = p.split('/')[-1][:-4]
-        pdb_name = name[:4].lower()
+        
         if retry and name + '.pkl' in \
-                os.listdir(prody_pkl_outdir + '/' + pdb_name[1:3] + '/'):
+                os.listdir(prody_pkl_outdir):
             continue
         ### create hierarchical subdirectories to ease filesystem load
-        for outdir in [probe_outdir, rotalyze_outdir, prody_pkl_outdir, 
-                       validation_pkl_outdir]:
-            if not os.path.exists(outdir + '/' + pdb_name[1:3]):
-                os.makedirs(outdir + '/' + pdb_name[1:3])
+        #for outdir in [probe_outdir, rotalyze_outdir, prody_pkl_outdir]:
+        #               #validation_pkl_outdir]:
+        #        os.makedirs(outdir + '/' + pdb_name[1:3])
         ###
-        val_path = validation_dir + '/' + pdb_name + '/' + pdb_name + \
-                   '_validation.xml.gz'
+        #val_path = validation_dir + '/' + pdb_name + '/' + pdb_name + \
+        #           '_validation.xml.gz'
         
         try:
-            assert os.path.exists(val_path)
-            val_df, data = parse_validation_rep(val_path)
+            #assert os.path.exists(val_path)
             b = pr.parsePDB(p)
             b = transfer_O3(b) # transfer O3' atoms in nucleotides
         except Exception:
             traceback.print_exc(file=sys.stdout)
             cmd = ['rm', basename + name + '.pdb;']
             os.system(' '.join(cmd))
-            print(f'COMBS SKIPPED {pdb_name} because could not execute: ')
+            print(f'COMBS SKIPPED {name} because could not execute: ')
             print(' '.join(cmd))
             continue
         segs_chains_resnums_resnames = \
@@ -374,7 +347,7 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
         if not len(segs_chains_resnums_resnames):
             cmd = ['rm', basename + name + '.pdb;']
             os.system(' '.join(cmd))
-            print(f'COMBS SKIPPED {pdb_name} b/c no segs_chains_resnums_resnames')
+            print(f'COMBS SKIPPED {name} b/c no segs_chains_resnums_resnames')
             continue
         contact_segs = [] # segment names of non-protein residues that contact 
                           # the protein according to probe
@@ -402,13 +375,13 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                     selstr_prot_noseg.format(chid_lig, resi_lig_for_sel), 
                     True)
             if not len(scrr_prot):
-                print(f'COMBS SKIPPED {pdb_name} because no scrr_prot')
+                print(f'COMBS SKIPPED {name} because no scrr_prot')
                 continue
             _, _, aa_resi, aa_resn = [list(tup) for tup in zip(*scrr_prot)]
             site = sorted([resn_lig] + aa_resn + 
                           [str(resi_lig)] + [str(resi) for resi in aa_resi])
             if site in prev_sites:
-                print(f'COMBS SKIPPED {pdb_name} b/c site in prev_sites')
+                print(f'COMBS SKIPPED {name} b/c site in prev_sites')
                 continue
             else:
                 prev_sites.append(site)
@@ -420,34 +393,24 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                                        path_to_probe=probe_path,
                                        ignore_bo=False)
             except TimeoutError:
-                print(f'COMBS SKIPPED {pdb_name} because timed out')
+                print(f'COMBS SKIPPED {name} because timed out')
                 break
             if not len(probe_df):
-                print(f'COMBS SKIPPED {pdb_name} because no probe_df')
+                print(f'COMBS SKIPPED {name} because no probe_df')
                 continue
             probe_df.loc[probe_df.chain1 == chid_lig, 'orig_chain1'] = \
                 chain_pair_dict[chid_lig]
-            probe_df = \
-                pd.merge(probe_df, val_df, 
-                         left_on=['orig_chain1', 'resname1', 'resnum1'], 
-                         right_on=['chain', 'resname', 'resnum'], 
-                         suffixes=['', '1'])
             if not len(probe_df):
-                print(f'COMBS SKIPPED {pdb_name} b/c no probe_df post-merge')
+                print(f'COMBS SKIPPED {name} b/c no probe_df post-merge')
                 continue
             for chain2 in probe_df.chain2.unique():
                 probe_df.loc[probe_df.chain2 == chain2, 'orig_chain2'] = \
                     chain_pair_dict[chain2]
-            probe_df = \
-                pd.merge(probe_df, val_df, 
-                         left_on=['orig_chain2', 'resname2', 'resnum2'], 
-                         right_on=['chain', 'resname', 'resnum'], 
-                         suffixes=['1', '2'])
             if not len(probe_df):
-                print(f'COMBS SKIPPED {pdb_name} because no probe_df chain2')
+                print(f'COMBS SKIPPED {name} because no probe_df chain2')
                 continue
             probe_df = probe_df.loc[:, ~probe_df.columns.duplicated()]
-            probe_outpath = probe_outdir + '/' + pdb_name[1:3] + '/' + name + \
+            probe_outpath = probe_outdir + '/' + name + \
                             '_' + seg_lig + '_' + chid_lig + '.pkl'
             if os.path.exists(probe_outpath):
                 with open(probe_outpath, 'rb') as inpkl:
@@ -459,7 +422,7 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
             for seg_prot, chid_prot, resi_prot, resn_prot in scrr_prot:
                 if not ((probe_df['chain2'] == chid_prot) & 
                         (probe_df['resnum2'] == resi_prot)).any():
-                    print(f'COMBS SKIPPED {pdb_name} b/c no contact with lig')
+                    print(f'COMBS SKIPPED {name} b/c no contact with lig')
                     continue
                 contact_chids.append(chid_prot)
                 contact_segs.append(seg_prot)
@@ -476,12 +439,14 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
             avg_bb_beta = b.select('name N CA C O').getBetas().mean()
             sigma_bb_beta = b.select('name N CA C O').getBetas().std()
             ligs = ' '.join(lig_set)
-            val_data.append(tuple([name] + data + 
-                                  [avg_bb_beta, sigma_bb_beta, ligs]))
+            #val_data.append(tuple([name] + data + 
+            #                      [avg_bb_beta, sigma_bb_beta, ligs]))
             parse_rotalyze(p, rotalyze_path, 
-                           rotalyze_outdir + '/' + pdb_name[1:3])
-            pr.execDSSP(p, outputdir=basename)
-            pr.parseDSSP(basename + name + '.dssp', b)
+                           rotalyze_outdir)
+            
+            # don't have dssp
+            #pr.execDSSP(p, outputdir=basename)
+            #pr.parseDSSP(basename + name + '.dssp', b)
             if len(contact_segs) and '' not in contact_segs:
                 final_selstr = ' or '.join(selstrs) + ' or (name CA CB and ('
                 addends = []
@@ -496,13 +461,13 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
                 contact_chids = ' '.join(set(contact_chids))
                 final_selstr = final_selstr.format(contact_chids)
             compressed_b = b.select(final_selstr).toAtomGroup()
-            with open(prody_pkl_outdir + '/' + pdb_name[1:3] + '/' + \
+            with open(prody_pkl_outdir + '/' + \
                       name + '.pkl', 'wb') as outfile:
                 pickle.dump(file=outfile, obj=compressed_b)
-            validation_df = pd.DataFrame(val_data, columns=valid_cols)
-            with open(validation_pkl_outdir + '/' + pdb_name[1:3] + '/' + \
-                      name + '.pkl', 'wb') as outfile:
-                pickle.dump(file=outfile, obj=validation_df)
+            #validation_df = pd.DataFrame(val_data, columns=valid_cols)
+            #with open(validation_pkl_outdir + '/' + pdb_name[1:3] + '/' + \
+            #          name + '.pkl', 'wb') as outfile:
+            #    pickle.dump(file=outfile, obj=validation_df)
         if os.path.exists(basename + name + '.dssp'):
             cmd = ['rm', basename + name + '.pdb;',
                    'rm', basename + name + '.dssp']
@@ -511,9 +476,12 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, validation_dir,
         os.system(' '.join(cmd))
 
 
-def ent_gz_dir_to_combs_db_files(ent_gz_dir, validation_dir, 
+def pdb_lig_to_combs_format(pdbpath,
+                                 #validation_dir, 
                                  prody_pkl_outdir, rotalyze_outdir, 
-                                 probe_outdir, validation_outdir, pdb_tmp_dir, 
+                                 probe_outdir, 
+                                 #validation_outdir, i
+                                 pdb_tmp_dir, 
                                  reduce_path, probe_path, rotalyze_path, 
                                  max_ligands=25, water_csv_path=None, 
                                  pdb_het_dict=None, retry=False):
@@ -556,45 +524,46 @@ def ent_gz_dir_to_combs_db_files(ent_gz_dir, validation_dir,
     retry : bool
         Run as if the code has already been run but did not complete.
     """
-    for _dir in [ent_gz_dir, prody_pkl_outdir, rotalyze_outdir, 
-                 probe_outdir, validation_outdir, pdb_tmp_dir]:
+    for _dir in [prody_pkl_outdir, rotalyze_outdir, 
+                 probe_outdir, 
+                 #validation_outdir, 
+                 pdb_tmp_dir]:
         if not os.path.exists(_dir):
             os.makedirs(_dir)
-    if ent_gz_dir[:-1] != '/':
-        ent_gz_dir += '/'
-    ent_gz_paths = [ent_gz_dir + path for path in os.listdir(ent_gz_dir)]
-    bio_paths, chain_pair_dicts = write_biounits(ent_gz_paths, pdb_tmp_dir, 
+    
+    
+    bio_paths, chain_pair_dicts = write_biounits(pdbpath, pdb_tmp_dir, 
                                                  water_csv_path, 
                                                  write=(not retry))
     if not retry:
-        reduce_pdbs(bio_paths, reduce_path, pdb_het_dict)
-    pdbs_to_pkl(bio_paths, chain_pair_dicts, validation_dir, 
+        reduce_pdbs(bio_paths, reduce_path)
+    pdbs_to_pkl(bio_paths, chain_pair_dicts, #validation_dir, 
                 probe_outdir, rotalyze_outdir, prody_pkl_outdir, 
-                validation_outdir, probe_path, rotalyze_path, retry)
+                #validation_outdir
+                probe_path, rotalyze_path, retry)
 
 
 def parse_args():
     argp = argparse.ArgumentParser()
-    argp.add_argument('-e', '--ent-gz-dir', help="Path to directory "
-                      "containing ent.gz files from which to generate input "
-                      "files for COMBS database generation.",
+    argp.add_argument('--pdbpath', help="Path to pdb file to parse ligands.",
                       required=True)
-    argp.add_argument('-v', '--validation-dir', help="Path to directory "
-                      "containing xml.gz files with validation report "
-                      "data for all PDB structures.",
-                      required=True)
+    #argp.add_argument('-v', '--validation-dir', help="Path to directory "
+    #                  "containing xml.gz files with validation report "
+    #                  "data for all PDB structures.",
+    #                  required=True)
     argp.add_argument('-o', '--prody-pkl-outdir', help="Path to directory at "
                       "which to output pickled ProDy files.",
-                      requird=True)
+                      default=
+                      required=True)
     argp.add_argument('-r', '--rotalyze-outdir', help="Path to directory at "
                       "which to output pickled rotalyze dataframes.",
                       required=True)
     argp.add_argument('-p', '--probe-outdir', help="Path to directory at "
                       "which to output pickled probe dataframes.",
                       required=True)
-    argp.add_argument('-a', '--validation-outdir', help="Path to directory at "
-                      "which to output pickled validation dataframes.",
-                      required=True)
+    #argp.add_argument('-a', '--validation-outdir', help="Path to directory at "
+    #                  "which to output pickled validation dataframes.",
+    #                  required=True)
     argp.add_argument('-t', '--pdb-tmp-dir', 
                       default='/wynton/scratch/rian.kormos/tmp_pdbs/', 
                       help="Temporary directory at which to output unzipped "
@@ -613,9 +582,6 @@ def parse_args():
                       help="Path to CSV file containing water molecules to "
                       "be added to the database (optional, see docstrings for "
                       "more information).")
-    argp.add_argument('-d', '--pdb-het-dict', help="Path to het_dict "
-                      "specifying for the Reduce program how ligands "
-                      "should be protonated (optional).")
     argp.add_argument('--retry', action='store_true', 
                       help="Run as if the code has already been run but "
                       "did not complete (i.e. finish generating the files "
@@ -625,11 +591,13 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    ent_gz_dir_to_combs_db_files(args.ent_gz_dir, args.validation_dir, 
+    pdb_lig_to_combs_format(args.pdbpath,
+                                #args.ent_gz_dir, args.validation_dir, 
                                  args.prody_pkl_outdir, args.rotalyze_outdir, 
-                                 args.probe_outdir, args.validation_outdir, 
+                                 args.probe_outdir, #args.validation_outdir, 
                                  args.pdb_tmp_dir, args.reduce_path, 
                                  args.probe_path, args.rotalyze_path, 
                                  args.max_ligands, args.water_csv_path, 
-                                 args.pdb_het_dict, args.retry)
+                                 #args.pdb_het_dict, 
+                                 args.retry)
     print('SCRIPT COMPLETED')
