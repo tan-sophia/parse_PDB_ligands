@@ -1,6 +1,6 @@
-# TODO: Clean up code, because the assumed database is formatted differently
-# than the intended (Combs) database. E.g. remove references to ent_gz, 
-# validation metrics, etc.
+# TODO: Clean up code for readability, because the assumed database is 
+# formatted differently than the intended (Combs) database. 
+# E.g. remove references to ent_gz, validation metrics, etc.
 
 import os
 import sys
@@ -547,27 +547,6 @@ def parse_args():
     argp = argparse.ArgumentParser()
     argp.add_argument('--pdbpath', help="Path to pdb file to parse ligands.",
                       required=True)
-    #argp.add_argument('-v', '--validation-dir', help="Path to directory "
-    #                  "containing xml.gz files with validation report "
-    #                  "data for all PDB structures.",
-    #                  required=True)
-    argp.add_argument('-o', '--prody-pkl-outdir', help="Path to directory at "
-                      "which to output pickled ProDy files.",
-                      default=
-                      required=True)
-    argp.add_argument('-r', '--rotalyze-outdir', help="Path to directory at "
-                      "which to output pickled rotalyze dataframes.",
-                      required=True)
-    argp.add_argument('-p', '--probe-outdir', help="Path to directory at "
-                      "which to output pickled probe dataframes.",
-                      required=True)
-    #argp.add_argument('-a', '--validation-outdir', help="Path to directory at "
-    #                  "which to output pickled validation dataframes.",
-    #                  required=True)
-    argp.add_argument('-t', '--pdb-tmp-dir', 
-                      default='/wynton/scratch/rian.kormos/tmp_pdbs/', 
-                      help="Temporary directory at which to output unzipped "
-                      "ent files.", required=True)
     argp.add_argument("--reduce-path", help="Path to reduce binary.",
                       required=True)
     argp.add_argument("--probe-path", help="Path to probe binary.",
@@ -578,14 +557,19 @@ def parse_args():
                       help="Maximum number of heteroatom (i.e. non-protein, "
                       "non-nucleic, and non-water) residues to permit in a "
                       "biological assembly.")
-    argp.add_argument('-w', '--water-csv-path', 
-                      help="Path to CSV file containing water molecules to "
-                      "be added to the database (optional, see docstrings for "
-                      "more information).")
-    argp.add_argument('--retry', action='store_true', 
-                      help="Run as if the code has already been run but "
-                      "did not complete (i.e. finish generating the files "
-                      "that did not generate in an earlier run.")
+    argp.add_argument('-o', '--prody-pkl-outdir', help="Path to directory at "
+                      "which to output pickled ProDy files.",
+                      default='databases/parsed_biolip2_ligs/prody')
+    argp.add_argument('-r', '--rotalyze-outdir', help="Path to directory at "
+                      "which to output pickled rotalyze dataframes.",
+                      default='databases/parsed_biolip2_ligs/rotalyze')
+    argp.add_argument('-p', '--probe-outdir', help="Path to directory at "
+                      "which to output pickled probe dataframes.",
+                      default='databases/parsed_biolip2_ligs/probe')
+    argp.add_argument('-t', '--pdb-tmp-dir', 
+                      help="Temporary directory at which to output unzipped "
+                      "ent files.", 
+                      default='databases/parsed_biolip2_ligs/tmp')
     return argp.parse_args()
 
 
@@ -597,7 +581,6 @@ if __name__ == "__main__":
                                  args.probe_outdir, #args.validation_outdir, 
                                  args.pdb_tmp_dir, args.reduce_path, 
                                  args.probe_path, args.rotalyze_path, 
-                                 args.max_ligands, args.water_csv_path, 
+                                 args.max_ligands)
                                  #args.pdb_het_dict, 
-                                 args.retry)
     print('SCRIPT COMPLETED')
