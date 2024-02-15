@@ -10,6 +10,7 @@ import traceback
 import numpy as np
 import prody as pr
 import pandas as pd
+import time
 
 from copy import deepcopy
 
@@ -20,7 +21,10 @@ from probe import *
 from probe import timeout
 
 """
-Note: this runs on a single PDB at a time for batch submissions to 
+Note: This file is adapted from
+https://github.com/rckormos/combs_ligand_database/ligand_database.py.
+
+This script runs on a single PDB at a time for batch submissions to 
 a cluster.
 
 Updated pdb files and validation reports should be downloaded via the 
@@ -575,6 +579,7 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    start_time = time.time()
     pdb_lig_to_combs_format(args.pdbpath,
                                 #args.ent_gz_dir, args.validation_dir, 
                                  args.prody_pkl_outdir, args.rotalyze_outdir, 
@@ -583,4 +588,6 @@ if __name__ == "__main__":
                                  args.probe_path, args.rotalyze_path, 
                                  args.max_ligands)
                                  #args.pdb_het_dict, 
-    print('SCRIPT COMPLETED')
+    end_time = time.time()
+    print('Parsing completed.')
+    print(f'Elapsed Time: {(end_time - start_time)/60} minutes')
