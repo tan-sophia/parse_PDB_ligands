@@ -1,6 +1,10 @@
 # TODO: Clean up code for readability, because the assumed database is 
 # formatted differently than the intended (Combs) database. 
 # E.g. remove references to ent_gz, validation metrics, etc.
+'''
+Made these modifications:
+
+'''
 
 import os
 import sys
