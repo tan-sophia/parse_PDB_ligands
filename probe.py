@@ -226,8 +226,6 @@ def parse_probe(pdb_file,
             elif include_wc and 'wc' in interactions:
                 interaction = 'wc'
             else:
-                print(f'COMBS SKIPPED {pdb_file} because interactions: ')
-                print(interactions)
                 continue
             data = [interaction]
             data.extend(info)

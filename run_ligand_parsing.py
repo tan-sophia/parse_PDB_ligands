@@ -383,13 +383,14 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, #validation_dir,
                     selstr_prot_noseg.format(chid_lig, resi_lig_for_sel), 
                     True)
             if not len(scrr_prot):
-                print(f'COMBS SKIPPED {name} because no scrr_prot')
+                #print(f'COMBS SKIPPED {name} because no scrr_prot') # could be incorrect chain name
                 continue
             _, _, aa_resi, aa_resn = [list(tup) for tup in zip(*scrr_prot)]
             site = sorted([resn_lig] + aa_resn + 
                           [str(resi_lig)] + [str(resi) for resi in aa_resi])
-            if site in prev_sites:
-                print(f'COMBS SKIPPED {name} b/c site in prev_sites')
+            
+            if site in prev_sites: # this catches the cases where it's identical to a binding site
+                                   # in an already-encountered chain within this PDB
                 continue
             else:
                 prev_sites.append(site)
@@ -430,7 +431,7 @@ def pdbs_to_pkl(pdb_list, chain_pair_dicts, #validation_dir,
             for seg_prot, chid_prot, resi_prot, resn_prot in scrr_prot:
                 if not ((probe_df['chain2'] == chid_prot) & 
                         (probe_df['resnum2'] == resi_prot)).any():
-                    print(f'COMBS SKIPPED {name} b/c no contact with lig')
+                    #print(f'COMBS SKIPPED {name} b/c no contact with lig') # only skipping this res, not all res in this pdb...so no need to report
                     continue
                 contact_chids.append(chid_prot)
                 contact_segs.append(seg_prot)
